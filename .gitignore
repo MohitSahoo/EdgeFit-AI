@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Runtime data
+current_frame.jpg
+current_frame.pkl
+chat_history.json
+posture_summary.json
+websocket_status.json
+endpoint_values.json
+posture_report.txt
+motivation_quotes.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.venv
+venv/
+ENV/
+
+# Logs
+*.log
+
+# Project specific
+.agents/
+skills-lock.json
