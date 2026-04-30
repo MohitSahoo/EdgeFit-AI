@@ -275,9 +275,6 @@ For a comprehensive overview of the project, including architecture, features, a
 
 This project is licensed under the terms specified in the LICENSE file.
 
-## 🤝 Contributing
-
-Built for the Qualcomm Edge AI Developer Hackathon. Contributions and feedback are welcome!
 
 ---
 
