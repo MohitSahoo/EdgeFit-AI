@@ -48,19 +48,6 @@ def start_component(name, command, delay=0, show_output=False):
         print(f"❌ Failed to start {name}: {e}")
         return None
 
-def open_browser_after_delay(url, delay_seconds):
-    """Open browser after a delay in a separate thread."""
-    def delayed_open():
-        time.sleep(delay_seconds)
-        try:
-            print(f"🌐 Opening browser: {url}")
-            webbrowser.open(url)
-        except Exception as e:
-            print(f"⚠️ Could not open browser automatically: {e}")
-            print(f"💡 Please manually open: {url}")
-    
-    thread = threading.Thread(target=delayed_open, daemon=True)
-    thread.start()
 
 def main():
     print("🚀 Edgefit-Coach Application Launcher")
@@ -87,26 +74,13 @@ def main():
         if api_process:
             processes.append(("API Server", api_process))
         
-        # Step 3: Start Streamlit Frontend (with longer delay)
-        streamlit_process = start_component(
-            "Streamlit Frontend",
-            ["python", "-m", "streamlit", "run", "frontend_test.py", "--server.port", "8501", "--server.headless", "true"],
-            delay=5
-        )
-        if streamlit_process:
-            processes.append(("Streamlit Frontend", streamlit_process))
-        
         print("=" * 50)
         print("🎉 ALL COMPONENTS STARTED!")
-        print("📋 Access your application at:")
-        print("   🎨 Frontend: http://localhost:8501")
+        print("📋 Access your application APIs at:")
         print("   🔧 API Docs: http://localhost:8000/docs")
         print("   🔌 WebSocket: ws://localhost:8001")
         print("=" * 50)
-        
-        # Open browser automatically after a short delay
-        print("🌐 Opening Streamlit app in browser...")
-        open_browser_after_delay("http://localhost:8501", 3)
+
         
         print("Press Ctrl+C to stop all components...")
         

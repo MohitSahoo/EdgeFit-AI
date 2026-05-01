@@ -17,7 +17,8 @@ class PreferencesManager(private val context: Context) {
         private val SERVER_IP_KEY = stringPreferencesKey("server_ip")
         private val SERVER_PORT_KEY = stringPreferencesKey("server_port")
 
-        const val DEFAULT_IP = "192.168.1.1"
+        // 10.0.2.2 is the special alias for the host loopback interface in Android Emulator
+        const val DEFAULT_IP = "10.0.2.2"
         const val DEFAULT_PORT = "8000"
     }
 

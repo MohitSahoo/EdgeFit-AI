@@ -201,7 +201,7 @@ async def main():
     start_file_monitor()
     
     # Start WebSocket server using the new API
-    async with websockets.serve(handle_client, "localhost", 8001):
+    async with websockets.serve(handle_client, "0.0.0.0", 8001):
         print("✅ WebSocket server started on ws://localhost:8001/")
         print("🔗 Waiting for client connections...")
         

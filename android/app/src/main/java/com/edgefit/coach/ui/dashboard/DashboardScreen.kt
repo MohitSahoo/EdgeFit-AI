@@ -65,6 +65,54 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 dashboardData?.let { data ->
+                    // Video Stream View
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(240.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Live Camera Feed",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                )
+                                
+                                val context = androidx.compose.ui.platform.LocalContext.current
+                                val preferencesManager = remember { com.edgefit.coach.util.PreferencesManager(context) }
+                                val ip by preferencesManager.serverIp.collectAsState(initial = "10.0.2.2")
+                                val port by preferencesManager.serverPort.collectAsState(initial = "8000")
+                                val streamUrl = "http://$ip:$port/video/stream"
+                                
+                                androidx.compose.ui.viewinterop.AndroidView(
+                                    factory = { ctx ->
+                                        android.webkit.WebView(ctx).apply {
+                                            settings.javaScriptEnabled = true
+                                            settings.loadWithOverviewMode = true
+                                            settings.useWideViewPort = true
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+                                            loadUrl(streamUrl)
+                                        }
+                                    },
+                                    update = { webView ->
+                                        // Only reload if the URL changes to avoid flicker
+                                        if (webView.url != streamUrl) {
+                                            webView.loadUrl(streamUrl)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+
                     // Posture Health Score
                     item {
                         CircularMetricCard(

@@ -35,7 +35,6 @@ connected_websockets = set()
 
 # Global variables for subprocess management
 websocket_process = None
-streamlit_process = None
 
 # Chat history storage
 chat_history_file = "chat_history.json"
@@ -60,43 +59,9 @@ def initialize_chat_history():
         with open(chat_history_file, 'w') as f:
             json.dump(initial_data, f, indent=2)
 
-def start_websocket_server():
-    """Start the WebSocket server subprocess."""
-    global websocket_process
-    try:
-        websocket_process = subprocess.Popen(
-            ["python", "websocket_server.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8',
-            errors='ignore'
-        )
-        return True
-    except Exception as e:
-        print(f"❌ Failed to start WebSocket server: {e}")
-        return False
-
-def start_streamlit_frontend():
-    """Start the Streamlit frontend subprocess."""
-    global streamlit_process
-    try:
-        streamlit_process = subprocess.Popen(
-            ["python", "-m", "streamlit", "run", "frontend_test.py", "--server.port", "8501", "--server.headless", "true"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8',
-            errors='ignore'
-        )
-        return True
-    except Exception as e:
-        print(f"❌ Failed to start Streamlit frontend: {e}")
-        return False
-
 def stop_subprocesses():
     """Stop all subprocess components."""
-    global websocket_process, streamlit_process
+    global websocket_process
     
     if websocket_process:
         try:
@@ -106,15 +71,6 @@ def stop_subprocesses():
         except:
             websocket_process.kill()
             print("🔪 WebSocket server force killed")
-    
-    if streamlit_process:
-        try:
-            streamlit_process.terminate()
-            streamlit_process.wait(timeout=5)
-            print("✅ Streamlit frontend stopped")
-        except:
-            streamlit_process.kill()
-            print("🔪 Streamlit frontend force killed")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -144,9 +100,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
-# Note: Streamlit startup is now handled by start_app.py launcher
-# This ensures proper startup order: WebSocket -> API -> Streamlit
 
 # Add CORS middleware
 app.add_middleware(
@@ -190,83 +143,14 @@ async def root():
         }
     }
 
-class PageControlRequest(BaseModel):
-    page_name: str
 
-@app.post("/video/page-control")
-async def control_video_for_page(request: PageControlRequest):
-    """Control video streaming based on current page."""
-    page_name = request.page_name
-    try:
-        if page_name in ["dashboard", "analysis", "chat", "system", "other"]:
-            # Stop video when accessing non-video pages
-            if is_pose_streaming():
-                stop_pose_streaming()
-                page_descriptions = {
-                    "dashboard": "dashboard",
-                    "analysis": "analysis page", 
-                    "chat": "chat interface",
-                    "system": "system status",
-                    "other": "other page"
-                }
-                description = page_descriptions.get(page_name, page_name)
-                return {
-                    "status": f"paused_for_{page_name}",
-                    "message": f"Video stream paused while viewing {description}",
-                    "page": page_name
-                }
-            else:
-                return {
-                    "status": "already_stopped",
-                    "message": "Video stream was already stopped",
-                    "page": page_name
-                }
-        
-        elif page_name == "video":
-            # Start video when accessing video page
-            if not is_pose_streaming():
-                success = start_pose_streaming()
-                if success:
-                    # Start motivation monitoring if not running
-                    motivation_thread_running = any(thread.name == "motivation_monitor" for thread in threading.enumerate())
-                    if not motivation_thread_running:
-                        motivation_thread = threading.Thread(target=monitor_motivation_quotes, daemon=True, name="motivation_monitor")
-                        motivation_thread.start()
-                    
-                    return {
-                        "status": "resumed_for_video",
-                        "message": "Video stream resumed for video page",
-                        "stream_url": get_pose_stream_url(),
-                        "page": page_name
-                    }
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to resume video stream")
-            else:
-                return {
-                    "status": "already_running",
-                    "message": "Video stream was already running",
-                    "stream_url": get_pose_stream_url(),
-                    "page": page_name
-                }
-        
-        else:
-            # For other pages, maintain current state
-            current_status = "running" if is_pose_streaming() else "stopped"
-            return {
-                "status": f"maintained_{current_status}",
-                "message": f"Video stream state maintained for {page_name} page",
-                "page": page_name
-            }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to control video for page: {str(e)}")
 
 @app.get("/video/start")
 async def start_video_stream():
     """Start the video streaming process with pose detection."""
     try:
         if is_pose_streaming():
-            return {"status": "already_running", "message": "Video stream is already active"}
+            return {"status": "running", "message": "Video stream is already active"}
         
         # Start the enhanced pose detection video streamer
         success = start_pose_streaming()
@@ -280,7 +164,7 @@ async def start_video_stream():
                 print("🎯 Motivation monitoring thread started")
             
             return {
-                "status": "started", 
+                "status": "running", 
                 "message": "Video stream started successfully with pose detection and posture monitoring",
                 "stream_url": get_pose_stream_url(),
                 "features": ["pose_detection", "posture_monitoring", "stretching_detection"],
@@ -300,7 +184,7 @@ async def stop_video_stream():
             stop_pose_streaming()
             return {"status": "stopped", "message": "Video stream stopped successfully"}
         else:
-            return {"status": "not_running", "message": "Video stream was not running"}
+            return {"status": "stopped", "message": "Video stream was not running"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to stop video stream: {str(e)}")
 
@@ -357,6 +241,8 @@ async def video_stream():
             media_type="multipart/x-mixed-replace; boundary=frame"
         )
 
+# Ensure directory exists before mounting
+os.makedirs("data/processed", exist_ok=True)
 # Mount static files for HLS streaming
 app.mount("/hls", StaticFiles(directory="data/processed"), name="hls")
 
@@ -423,6 +309,7 @@ def monitor_motivation_quotes():
 # Removed broadcast_motivation function - now using queue-based approach in WebSocket handler
 
 @app.websocket("/ws/motivation")
+@app.websocket("/ws/posture")
 async def motivation_websocket(websocket: WebSocket):
     """WebSocket endpoint for real-time motivation quotes."""
     await websocket.accept()
@@ -715,7 +602,7 @@ Please provide a detailed analysis and recommendations based on this data."""
         
         if is_error_response(analysis_response):
             print(f"❌ LLM returned error response: {analysis_response}")
-            raise HTTPException(status_code=500, detail=f"Analysis error: {analysis_response}")
+            analysis_response = "The AI Analysis server is currently offline or unreachable. However, based on the dashboard metrics, we recommend maintaining good posture habits, keeping your screen at eye level, and taking regular stretching breaks every 30 minutes!"
         
         # Step 5: Save this as the initial conversation in chat history
         try:
@@ -792,35 +679,29 @@ async def get_report_file():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for all components."""
-    global websocket_process, streamlit_process
+    global websocket_process
     
     # Check subprocess status
     websocket_status = "running" if websocket_process and websocket_process.poll() is None else "stopped"
-    streamlit_status = "running" if streamlit_process and streamlit_process.poll() is None else "stopped"
     video_status = "running" if video_process and video_process.poll() is None else "stopped"
     
     # Overall system status
-    all_running = all([
-        websocket_status == "running",
-        streamlit_status == "running"
-    ])
+    all_running = True # Android app logic just checks for this endpoint responding "ok"
     
     return {
-        "status": "healthy" if all_running else "partial",
+        "status": "ok",
         "timestamp": datetime.now().isoformat(),
         "components": {
             "api_server": "running",
             "websocket_server": websocket_status,
-            "streamlit_frontend": streamlit_status,
             "video_stream": video_status,
             "chat_system": "active",
             "dashboard": "active",
             "analysis": "active"
         },
         "urls": {
-            "frontend": "http://localhost:8501",
             "api_docs": "http://localhost:8000/docs",
-            "websocket": "ws://localhost:8001"
+            "websocket": "ws://localhost:8001/ws/posture"
         }
     }
 

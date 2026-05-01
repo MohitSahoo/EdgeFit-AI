@@ -31,8 +31,9 @@ class PostureDashboard:
     def load_posture_data(self) -> bool:
         """Load posture data from JSON file."""
         if not os.path.exists(self.posture_file):
-            print(f"❌ Posture file not found: {self.posture_file}")
-            return False
+            print(f"⚠️ Posture file not found: {self.posture_file}. Using empty data.")
+            self.posture_data = {'summary_logs': []}
+            return True
         
         try:
             with open(self.posture_file, 'r') as f:
@@ -45,10 +46,46 @@ class PostureDashboard:
     def calculate_metrics(self):
         """Calculate comprehensive metrics from posture data."""
         if not self.posture_data or 'summary_logs' not in self.posture_data:
-            return
-        
-        logs = self.posture_data['summary_logs']
+            logs = []
+        else:
+            logs = self.posture_data['summary_logs']
+            
         if not logs:
+            self.metrics = {
+                'generated_at': datetime.now().isoformat(),
+                'basic_metrics': {
+                    'total_sessions': 0,
+                    'total_good_posture': 0,
+                    'total_slouching': 0,
+                    'total_readings': 0,
+                    'overall_good_percentage': 0.0
+                },
+                'performance_metrics': {
+                    'best_session_percentage': 0.0,
+                    'worst_session_percentage': 0.0,
+                    'average_session_percentage': 0.0,
+                    'consistency_score': 0.0,
+                    'excellent_sessions': 0,
+                    'good_sessions': 0,
+                    'poor_sessions': 0
+                },
+                'improvement_trends': {
+                    'improvement_rate': 0.0,
+                    'trend_direction': "insufficient_data"
+                },
+                'recent_performance': {
+                    'recent_average_percentage': 0.0,
+                    'recent_sessions_count': 0
+                },
+                'quality_assessment': {
+                    'quality_rating': "No Data Yet",
+                    'rating_emoji': "⏳",
+                    'overall_quality_score': 0.0
+                },
+                'time_metrics': {
+                    'total_monitoring_time_minutes': 0.0
+                }
+            }
             return
         
         # Basic metrics

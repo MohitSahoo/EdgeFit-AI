@@ -30,8 +30,9 @@ class PostureConverter:
     def load_summary_data(self) -> bool:
         """Load the posture summary data from JSON file."""
         if not os.path.exists(self.summary_file):
-            print(f"❌ Summary file not found: {self.summary_file}")
-            return False
+            print(f"⚠️ Summary file not found: {self.summary_file}. Using empty data.")
+            self.summary_data = {'summary_logs': []}
+            return True
         
         try:
             with open(self.summary_file, 'r') as f:
@@ -65,8 +66,13 @@ class PostureConverter:
         for i in range(1, len(logs)):
             prev_pct = logs[i-1]['good_posture_percentage']
             curr_pct = logs[i]['good_posture_percentage']
-            # Count as conversion if previous was poor (<60%) and current is good (≥70%)
-            if prev_pct < 60 and curr_pct >= 70:
+            prev_slouch = logs[i-1].get('slouching_count', 0)
+            
+            # Count as conversion if previous window had slouching, and current window improved
+            if prev_slouch > 0 and curr_pct > prev_pct:
+                conversions += 1
+            # Also count if previous was poor (<70%) and current is good (≥70%)
+            elif prev_pct < 70 and curr_pct >= 70:
                 conversions += 1
         
         # 3. CONSISTENCY INDEX (0-100%) - Reliability measure

@@ -16,7 +16,6 @@ def main():
     print("   This will start all components automatically:")
     print("   • WebSocket Server")
     print("   • API Server") 
-    print("   • Streamlit Frontend")
     print("=" * 50)
     
     try:
