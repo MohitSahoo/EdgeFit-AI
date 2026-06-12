@@ -5,8 +5,9 @@ import com.edgefit.coach.data.model.ReportFileResponse
 import com.edgefit.coach.data.remote.ApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
-class AnalysisRepository(private val apiService: ApiService) {
+class AnalysisRepository @Inject constructor(private val apiService: ApiService) {
 
     suspend fun generateReport(): Result<AnalysisResponse> = withContext(Dispatchers.IO) {
         try {

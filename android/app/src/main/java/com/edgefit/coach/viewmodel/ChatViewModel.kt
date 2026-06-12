@@ -3,14 +3,17 @@ package com.edgefit.coach.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edgefit.coach.data.model.ChatHistoryItem
-import com.edgefit.coach.data.repository.ChatRepository
+import com.edgefit.coach.data.repository.AiRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ChatViewModel(
-    private val chatRepository: ChatRepository
+@HiltViewModel
+class ChatViewModel @Inject constructor(
+    private val aiRepository: AiRepository
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<ChatHistoryItem>>(emptyList())
@@ -25,28 +28,6 @@ class ChatViewModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    init {
-        loadChatHistory()
-    }
-
-    fun loadChatHistory() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
-
-            chatRepository.getChatHistory().fold(
-                onSuccess = { history ->
-                    _messages.value = history
-                    _isLoading.value = false
-                },
-                onFailure = { exception ->
-                    _error.value = exception.message ?: "Failed to load chat history"
-                    _isLoading.value = false
-                }
-            )
-        }
-    }
-
     fun sendMessage(message: String) {
         if (message.isBlank()) return
 
@@ -54,19 +35,42 @@ class ChatViewModel(
             _isSending.value = true
             _error.value = null
 
-            chatRepository.sendMessage(message).fold(
+            // Add user message to UI immediately for responsiveness
+            val userTimestamp = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+            val tempItem = ChatHistoryItem(
+                timestamp = userTimestamp,
+                userMessage = message,
+                assistantResponse = "...", // Temporary placeholder
+                conversationId = "local"
+            )
+            
+            // We append a temporary item to show the user's message while waiting
+            val currentList = _messages.value.toMutableList()
+            currentList.add(tempItem)
+            _messages.value = currentList
+
+            val result = aiRepository.chat(message, _messages.value.dropLast(1))
+
+            result.fold(
                 onSuccess = { response ->
-                    // Add the new message to the list
-                    val newMessage = ChatHistoryItem(
-                        timestamp = response.timestamp,
+                    val finalItem = ChatHistoryItem(
+                        timestamp = userTimestamp,
                         userMessage = message,
-                        assistantResponse = response.response,
-                        conversationId = response.conversationId
+                        assistantResponse = response,
+                        conversationId = "local"
                     )
-                    _messages.value = _messages.value + newMessage
+                    // Replace the temporary item with the actual response
+                    val updatedList = _messages.value.toMutableList()
+                    updatedList[updatedList.lastIndex] = finalItem
+                    _messages.value = updatedList
                     _isSending.value = false
                 },
                 onFailure = { exception ->
+                    // Remove the temporary item on failure
+                    val fallbackList = _messages.value.toMutableList()
+                    fallbackList.removeAt(fallbackList.lastIndex)
+                    _messages.value = fallbackList
+                    
                     _error.value = exception.message ?: "Failed to send message"
                     _isSending.value = false
                 }
@@ -75,21 +79,7 @@ class ChatViewModel(
     }
 
     fun clearHistory() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
-
-            chatRepository.clearHistory().fold(
-                onSuccess = {
-                    _messages.value = emptyList()
-                    _isLoading.value = false
-                },
-                onFailure = { exception ->
-                    _error.value = exception.message ?: "Failed to clear history"
-                    _isLoading.value = false
-                }
-            )
-        }
+        _messages.value = emptyList()
     }
 
     fun clearError() {

@@ -4,8 +4,9 @@ import com.edgefit.coach.data.model.VideoStatusResponse
 import com.edgefit.coach.data.remote.ApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
-class VideoRepository(private val apiService: ApiService) {
+class VideoRepository @Inject constructor(private val apiService: ApiService) {
 
     suspend fun startVideo(): Result<VideoStatusResponse> = withContext(Dispatchers.IO) {
         try {

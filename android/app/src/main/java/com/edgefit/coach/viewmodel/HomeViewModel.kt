@@ -6,13 +6,16 @@ import com.edgefit.coach.data.model.QuoteData
 import com.edgefit.coach.data.model.VideoStatusResponse
 import com.edgefit.coach.data.repository.VideoRepository
 import com.edgefit.coach.data.repository.WebSocketRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val videoRepository: VideoRepository,
     private val webSocketRepository: WebSocketRepository
 ) : ViewModel() {

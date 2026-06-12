@@ -3,8 +3,9 @@ package com.edgefit.coach.data.repository
 import com.edgefit.coach.data.model.MotivationMessage
 import com.edgefit.coach.data.remote.WebSocketManager
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
-class WebSocketRepository(private val webSocketManager: WebSocketManager) {
+class WebSocketRepository @Inject constructor(private val webSocketManager: WebSocketManager) {
 
     val messages: Flow<MotivationMessage> = webSocketManager.messages
 

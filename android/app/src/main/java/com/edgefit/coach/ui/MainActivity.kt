@@ -3,41 +3,40 @@ package com.edgefit.coach.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.edgefit.coach.data.remote.ApiClient
-import com.edgefit.coach.data.remote.WebSocketManager
-import com.edgefit.coach.data.repository.*
-import com.edgefit.coach.ui.analysis.AnalysisScreen
 import com.edgefit.coach.ui.chat.ChatScreen
 import com.edgefit.coach.ui.dashboard.DashboardScreen
 import com.edgefit.coach.ui.home.HomeScreen
-import com.edgefit.coach.ui.onboarding.OnboardingScreen
 import com.edgefit.coach.ui.settings.SettingsScreen
 import com.edgefit.coach.ui.theme.EdgeFitCoachTheme
-import com.edgefit.coach.util.PreferencesManager
-import com.edgefit.coach.viewmodel.*
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import com.edgefit.coach.ui.workout.WorkoutScreen
+import com.edgefit.coach.ui.workout.WorkoutSummaryScreen
+import com.edgefit.coach.viewmodel.ChatViewModel
+import com.edgefit.coach.viewmodel.DashboardViewModel
+import com.edgefit.coach.viewmodel.WorkoutViewModel
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Initialize ApiClient
-        ApiClient.initialize(this)
 
         setContent {
             EdgeFitCoachTheme {
@@ -45,27 +44,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val preferencesManager = remember { PreferencesManager(this) }
-                    val scope = rememberCoroutineScope()
-                    var isOnboarded by remember { mutableStateOf(false) }
-
-                    LaunchedEffect(Unit) {
-                        scope.launch {
-                            val ip = preferencesManager.serverIp.first()
-                            val port = preferencesManager.serverPort.first()
-                            isOnboarded = ip != PreferencesManager.DEFAULT_IP ||
-                                         port != PreferencesManager.DEFAULT_PORT
-                        }
-                    }
-
-                    if (isOnboarded) {
-                        MainScreen(preferencesManager)
-                    } else {
-                        OnboardingScreen(
-                            preferencesManager = preferencesManager,
-                            onOnboardingComplete = { isOnboarded = true }
-                        )
-                    }
+                    MainScreen()
                 }
             }
         }
@@ -74,67 +53,51 @@ class MainActivity : ComponentActivity() {
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
+    object Workout : Screen("workout", "Workout", Icons.Default.FitnessCenter)
+    object WorkoutSummary : Screen("workout_summary", "Summary", Icons.Default.Assessment)
     object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Dashboard)
     object Chat : Screen("chat", "Chat", Icons.Default.Chat)
-    object Analysis : Screen("analysis", "Analysis", Icons.Default.Assessment)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
 @Composable
-fun MainScreen(preferencesManager: PreferencesManager) {
+fun MainScreen() {
     val navController = rememberNavController()
-    val scope = rememberCoroutineScope()
 
-    // Initialize repositories and ViewModels
-    val apiService = ApiClient.getApiService()
-
-    val serverIp = preferencesManager.serverIp.collectAsState(initial = PreferencesManager.DEFAULT_IP)
-    val serverPort = preferencesManager.serverPort.collectAsState(initial = PreferencesManager.DEFAULT_PORT)
-
-    val webSocketManager = remember(serverIp.value, serverPort.value) {
-        WebSocketManager(serverIp.value, serverPort.value)
-    }
-
-    val videoRepository = remember { VideoRepository(apiService) }
-    val webSocketRepository = remember(webSocketManager) { WebSocketRepository(webSocketManager) }
-    val dashboardRepository = remember { DashboardRepository(apiService) }
-    val chatRepository = remember { ChatRepository(apiService) }
-    val analysisRepository = remember { AnalysisRepository(apiService) }
-
-    val homeViewModel = remember { HomeViewModel(videoRepository, webSocketRepository) }
-    val dashboardViewModel = remember { DashboardViewModel(dashboardRepository) }
-    val chatViewModel = remember { ChatViewModel(chatRepository) }
-    val analysisViewModel = remember { AnalysisViewModel(analysisRepository) }
-
-    val items = listOf(
+    // Bottom nav items (excluding Workout and Summary which are fullscreen flows)
+    val bottomNavItems = listOf(
         Screen.Home,
         Screen.Dashboard,
         Screen.Chat,
-        Screen.Analysis,
         Screen.Settings
     )
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Hide bottom bar on fullscreen workout screens
+    val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-
-                items.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomNavItems.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                            label = { Text(screen.title) },
+                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -145,35 +108,67 @@ fun MainScreen(preferencesManager: PreferencesManager) {
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
-                HomeScreen(viewModel = homeViewModel)
+                HomeScreen(
+                    onStartWorkout = { 
+                        navController.navigate(Screen.Workout.route) 
+                    }
+                )
+            }
+            composable(Screen.Workout.route) {
+                // Use activity-scoped ViewModel so the session survives orientation changes
+                // and can be shared with the summary screen
+                val workoutViewModel: WorkoutViewModel = hiltViewModel(LocalContext.current as ComponentActivity)
+                
+                WorkoutScreen(
+                    viewModel = workoutViewModel,
+                    onWorkoutComplete = {
+                        navController.navigate(Screen.WorkoutSummary.route) {
+                            popUpTo(Screen.Home.route)
+                        }
+                    }
+                )
+            }
+            composable(Screen.WorkoutSummary.route) {
+                val workoutViewModel: WorkoutViewModel = hiltViewModel(LocalContext.current as ComponentActivity)
+                
+                WorkoutSummaryScreen(
+                    viewModel = workoutViewModel,
+                    onNavigateBack = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    },
+                    onGetAiAnalysis = {
+                        // In a full implementation, we'd pass the session data to the Chat screen
+                        // and navigate there to show the AI analysis
+                        navController.navigate(Screen.Chat.route) {
+                            popUpTo(Screen.Home.route)
+                        }
+                    }
+                )
             }
             composable(Screen.Dashboard.route) {
+                val dashboardViewModel: DashboardViewModel = hiltViewModel()
                 DashboardScreen(viewModel = dashboardViewModel)
             }
             composable(Screen.Chat.route) {
+                val chatViewModel: ChatViewModel = hiltViewModel()
                 ChatScreen(
                     viewModel = chatViewModel,
-                    onNavigateToAnalysis = {
-                        navController.navigate(Screen.Analysis.route)
-                    }
-                )
-            }
-            composable(Screen.Analysis.route) {
-                AnalysisScreen(
-                    viewModel = analysisViewModel,
-                    onNavigateToChat = {
-                        navController.navigate(Screen.Chat.route)
-                    }
+                    onNavigateToAnalysis = {}
                 )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen(
-                    preferencesManager = preferencesManager,
-                    onServerConfigChanged = {
-                        ApiClient.updateBaseUrl()
-                    }
-                )
+                SettingsScreen()
             }
         }
+    }
+}
+
+// Temporary placeholders for incomplete screens
+@Composable
+fun SettingsScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Settings Screen")
     }
 }

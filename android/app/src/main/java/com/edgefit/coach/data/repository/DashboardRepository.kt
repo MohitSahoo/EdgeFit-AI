@@ -4,8 +4,9 @@ import com.edgefit.coach.data.model.DashboardData
 import com.edgefit.coach.data.remote.ApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
-class DashboardRepository(private val apiService: ApiService) {
+class DashboardRepository @Inject constructor(private val apiService: ApiService) {
 
     suspend fun getDashboardData(): Result<DashboardData> = withContext(Dispatchers.IO) {
         try {
